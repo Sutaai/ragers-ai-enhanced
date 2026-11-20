@@ -235,9 +235,7 @@ pub fn get_decrypted_content(
 
     // Write the decrypted content to `decrypted_content`.
     let mut decryptor_stream = decryptor.decrypt(identities.iter().copied())?;
-    decryptor_stream
-        .read_to_end(&mut decrypted_content)
-        .expect("could not read decrypted content");
+    decryptor_stream.read_to_end(&mut decrypted_content)?;
 
     Ok(decrypted_content)
 }
@@ -284,7 +282,7 @@ impl Display for Action {
 /// Reusable wrapper to request the user if they are confirming encryption/decryption.
 /// This output a list of files that will be processed, request a yes or no from the user, and
 /// return the value to the caller, in which they decide what to do next.
-fn confirm_action(files: &[&RawConfigFile], action: Action) -> bool {
+fn confirm_action(files: &[&RawConfigFile], action: Action) -> Result<bool, CmdError> {
     let files_displayed: String = files
         .iter()
         .map(|path| match action {
@@ -299,10 +297,7 @@ fn confirm_action(files: &[&RawConfigFile], action: Action) -> bool {
         files_displayed
     );
 
-    Confirm::new(&confirm_str)
-        .with_default(true)
-        .prompt()
-        .expect("couldn't prompt to user")
+    Ok(Confirm::new(&confirm_str).with_default(true).prompt()?)
 }
 
 /// Attempt to read identities from files. Wrapper around [`age::cli_common::read_identities`] to
@@ -330,17 +325,13 @@ fn get_identities(
 
 /// Convert a str representation of a command into a tuple of two elements:
 /// - Path to the binary
-/// - Additionnal arguments, if any
+/// - Additional arguments, if any
 ///
-/// While possible, the function shall not panic as long as it is checked that the str is not
-/// empty.
-fn convert_str_to_cmd(cmd_str: &str) -> (PathBuf, Vec<String>) {
+/// Returns `None` when the string is empty or whitespace-only.
+fn convert_str_to_cmd(cmd_str: &str) -> Option<(PathBuf, Vec<String>)> {
     let mut args = cmd_str.split_ascii_whitespace();
 
-    (
-        args.next().unwrap().into(),
-        args.map(String::from).collect(),
-    )
+    Some((args.next()?.into(), args.map(String::from).collect()))
 }
 
 /// Get the path to the ragers editor from the `RAGERS_EDITOR` environment variable, if set.
@@ -351,11 +342,22 @@ fn convert_str_to_cmd(cmd_str: &str) -> (PathBuf, Vec<String>) {
 fn get_ragers_editor(ctx: &Context) -> Option<PathBuf> {
     let editor = ctx.cli.editor.clone()?;
 
-    let (cmd, _) = convert_str_to_cmd(&editor);
+    let (cmd, _) = convert_str_to_cmd(&editor)?;
 
     which(cmd).inspect_err(|&err| {
         if err == which::Error::CannotFindBinaryPath {
             println!("warning: cannot find path to binary for '{editor}'. attempting to use your default editor")
         }
     }).ok()
+}
+
+/// Best-effort removal of files written during a run, used to roll back an
+/// `AbortAtomic` failure. Revert errors are reported to stderr rather than
+/// returned, since the original processing error matters more.
+pub(crate) fn revert_written_files(files: &[&PathBuf]) {
+    for file in files {
+        if let Err(err) = std::fs::remove_file(file) {
+            eprintln!("warning: failed to revert {}: {err}", file.display());
+        }
+    }
 }

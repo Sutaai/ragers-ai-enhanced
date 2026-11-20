@@ -24,7 +24,6 @@ impl NotFound {
 pub enum ConfigError {
     #[error("could not build config file: {0}")]
     ParseError(#[from] config::ConfigError),
-    // #[error("Validation error: {0}")]
     #[error("validation error: {0:#?}")]
     ValidationError(Vec<ConfigValidationError>),
 }
@@ -94,20 +93,21 @@ pub enum RecipientsFactoryError {
 
 #[derive(Debug, Error)]
 pub enum DecryptionError {
-    // #[error(transparent)]
     #[error("decryption error: {0}")]
     AgeDecrypt(#[from] age::DecryptError),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum EncryptionError {
-    // #[error(transparent)]
     #[error("encryption error: {0}")]
     AgeEncrypt(#[from] age::EncryptError),
 
     // Error returned by wrap_output for encryption
     #[error(transparent)]
-    IO(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -160,11 +160,7 @@ impl<T> WithPath<T> for std::io::Result<T> {
     fn result_with_path(self, path: Option<&PathBuf>) -> Result<T, CmdError> {
         self.map_err(|err| CmdError::Io {
             source: err,
-            path: if let Some(p) = path {
-                Some(p.clone())
-            } else {
-                None
-            },
+            path: path.cloned(),
         })
     }
 }

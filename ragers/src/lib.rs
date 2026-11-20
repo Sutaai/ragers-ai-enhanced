@@ -22,7 +22,7 @@ use error::{CmdError, WithPath};
 /// as a library function so the full pipeline can be driven from tests.
 pub fn run(cli: Cli) -> Result<(), CmdError> {
     if cli.command.is_none() {
-        Cli::command().print_help().unwrap();
+        Cli::command().print_help().result_with_path(None)?;
         return Ok(());
     }
 
@@ -61,7 +61,7 @@ pub fn run(cli: Cli) -> Result<(), CmdError> {
         }) => cmd::decrypt(&ctx, files, identity, no_delete)?,
         Some(cli::Commands::Edit { file, identity }) => cmd::edit(&ctx, file, identity)?,
         None => {
-            Cli::command().print_help().unwrap();
+            Cli::command().print_help().result_with_path(None)?;
         }
     }
 

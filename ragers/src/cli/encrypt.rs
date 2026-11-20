@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use crate::{
     cli::{
         Action, FailurePolicy, NoDeleteArg, confirm_action, get_encrypted_content,
-        obtain_files_to_process,
+        obtain_files_to_process, revert_written_files,
     },
     config::AsArmorFormat,
     context::Context,
@@ -17,33 +17,37 @@ pub fn encrypt(
 ) -> Result<(), CmdError> {
     let to_process_files = obtain_files_to_process(ctx, files_to_encrypt)?;
 
-    if !ctx.cli.no_prompt && !confirm_action(&to_process_files, Action::Encryption) {
+    if !ctx.cli.no_prompt && !confirm_action(&to_process_files, Action::Encryption)? {
         return Ok(());
     }
 
     let mut stdin_guard = ctx.stdin_guard.borrow_mut();
     let mut files_to_delete: Vec<&PathBuf> = Vec::new();
+    let mut written_outputs: Vec<&PathBuf> = Vec::new();
 
     for file in to_process_files {
         match process_file(ctx, &mut stdin_guard, file) {
             Ok(_) => {
                 println!("encrypted: {}", file.out.display());
+                written_outputs.push(&file.out);
                 files_to_delete.push(&file.src);
             }
             Err(err) => match &ctx.cli.on_failure {
                 FailurePolicy::Abort => return Err(err),
                 FailurePolicy::Ignore => {
                     println!("ignored: {}", file.src.display());
-                    continue;
                 }
-                FailurePolicy::AbortAtomic => unimplemented!(),
+                FailurePolicy::AbortAtomic => {
+                    revert_written_files(&written_outputs);
+                    return Err(err);
+                }
             },
         };
     }
 
     if !no_delete.no_delete {
         for file in files_to_delete {
-            fs::remove_file(&file).result_with_path(Some(&file))?;
+            fs::remove_file(file).result_with_path(Some(file))?;
             println!("deleted: {}", file.display());
         }
     }

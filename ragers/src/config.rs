@@ -181,10 +181,7 @@ impl ConfigValidator {
             if !path.exists() {
                 return Err(ConfigValidationError::RecipientsFileNotFound {
                     key: alias.to_owned(),
-                    path: path
-                        .to_str()
-                        .expect("Could not convert path to str")
-                        .to_owned(),
+                    path: path.display().to_string(),
                 });
             }
         }
@@ -353,27 +350,30 @@ impl<'config> RecipientsFactory<'config> {
         age_recipient_str: &str,
         stdin_guard: &mut age::cli_common::StdinGuard,
     ) -> Result<Rc<dyn age::Recipient>, age::cli_common::ReadError> {
-        let mut cache = self.age_recipients_cache.borrow_mut();
-
-        if !cache.contains_key(age_recipient_str) {
-            let parsed_recipient = read_recipients(
-                vec![age_recipient_str.to_owned()],
-                vec![],
-                vec![],
-                None,
-                stdin_guard,
-            )?
-            .remove(0);
-            let rc_recipient: Rc<dyn age::Recipient + Send> = Rc::from(parsed_recipient);
-
-            cache.insert(age_recipient_str.to_owned(), rc_recipient);
+        if let Some(recipient) = self.age_recipients_cache.borrow().get(age_recipient_str) {
+            return Ok(Rc::clone(recipient));
         }
 
-        let age_recipient = Rc::clone(cache.get(age_recipient_str).unwrap_or_else(|| {
-            panic!("expected {age_recipient_str} to exist in factory cache, but nothing was found")
-        }));
+        let parsed_recipient = read_recipients(
+            vec![age_recipient_str.to_owned()],
+            vec![],
+            vec![],
+            None,
+            stdin_guard,
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            age::cli_common::ReadError::InvalidRecipient(age_recipient_str.to_owned())
+        })?;
 
-        Ok(age_recipient)
+        let rc_recipient: Rc<dyn age::Recipient + Send> = Rc::from(parsed_recipient);
+        let recipient: Rc<dyn age::Recipient> = rc_recipient;
+        self.age_recipients_cache
+            .borrow_mut()
+            .insert(age_recipient_str.to_owned(), Rc::clone(&recipient));
+
+        Ok(recipient)
     }
 
     fn direct_recipient(
