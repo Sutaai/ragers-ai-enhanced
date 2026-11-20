@@ -362,8 +362,7 @@ impl<'config> RecipientsFactory<'config> {
                 vec![],
                 None,
                 stdin_guard,
-            )
-            .unwrap()
+            )?
             .remove(0);
             let rc_recipient: Rc<dyn age::Recipient + Send> = Rc::from(parsed_recipient);
 

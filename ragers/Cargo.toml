@@ -22,3 +22,7 @@ same-file = "1.0.6"
 serde = { version = "1.0.228", features = ["serde_derive"] }
 thiserror = { version = "2.0.19", features = ["std"] }
 which = "8.0.6"
+
+[dev-dependencies]
+age = { version = "0.12.1", features = ["armor", "cli-common", "ssh"] }
+tempfile = "3"

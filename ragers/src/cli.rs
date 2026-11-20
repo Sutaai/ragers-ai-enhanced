@@ -223,7 +223,7 @@ fn obtain_files_to_process<'ctx>(
 /// This is a wrapper around [`age`]'s decryption logic, allowing multiple identities to be used
 /// for the decryption process.
 /// In the case the decryption could have not been completed, [`DecryptionError`] is returned.
-fn get_decrypted_content(
+pub fn get_decrypted_content(
     encrypted_content: &[u8],
     identities: &[&dyn age::Identity],
 ) -> Result<Vec<u8>, DecryptionError> {
@@ -247,7 +247,7 @@ fn get_decrypted_content(
 /// This is a wrapper around [`age`]'s encryption logic, allowing encryption using multiple
 /// recipients and to select the according format.
 /// In the case the decryption could have not been completed, [`EncryptionError`] is returned.
-fn get_encrypted_content(
+pub fn get_encrypted_content(
     raw_content: &[u8],
     recipients: Vec<&dyn age::Recipient>,
     format: age::armor::Format,
